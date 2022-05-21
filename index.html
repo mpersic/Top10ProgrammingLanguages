@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>VIZPOD</title>
+	<style>
+		html, body {
+			padding: 0;
+			margin: 0;
+			box-sizing: border-box;
+			font-family: Helvetica, Calibri, Roboto, Open Sans, sans-serif
+			-webkit-backface-visibility: hidden;
+		}
+		* {
+			box-sizing: inherit;
+		}
+		h1 {
+			text-align: center;
+		}
+		svg {
+			margin:auto;
+			display:block;
+		}
+
+		.circle-overlay {
+			font-size: 16px;
+			border-radius: 50%;
+			position: absolute;
+			overflow: hidden;
+		}
+		.circle-overlay__inner {
+			text-align: center;
+			width: 100%;
+			height: 100%;
+		}
+
+		.hidden {
+			display: none;
+		}
+		.node-icon--faded {
+			opacity: 0.5;
+		}
+		.legend-size circle {
+			fill: rgb(31, 119, 180);
+		}
+	</style>
+</head>
+<body>
+	<h1>Top 10 most popular programming languages</h1>
+	<svg width="100%" height="700" font-family="sans-serif" font-size="10" text-anchor="middle"></svg>
+
+	<script src="js/d3.min.js"></script>
+	<script src="js/d3-legend.min.js"></script>
+	<script>
+		// Based loosely from this D3 bubble graph https://bl.ocks.org/mbostock/4063269
+		// And this Forced directed diagram https://bl.ocks.org/mbostock/4062045
+		let data = [{
+			name: 'Python', value: 27.85,
+			icon: 'img/python.png',
+			desc: `
+				Python is a high-level, interpreted, general-purpose 
+				programming language. Its design philosophy emphasizes code
+				readability with the use of significant indentation.
+			`
+		}, {
+			name: 'Java', value: 17.86,
+			icon: 'img/java.png',
+			desc: `
+				Java is a high-level, class-based, object-oriented programming
+				language that is designed to have as few implementation dependencies
+				as possible. It is a general-purpose programming language intended to
+				let programmers write once, run anywhere (WORA).
+			`
+		}, {
+			name: 'Javascript', value: 9.17,
+			icon: 'img/javascript.png',
+			desc: `
+				JavaScript often abbreviated JS, is a programming language 
+				that is one of the core technologies of the World Wide Web, 
+				alongside HTML and CSS.
+			`
+		}, {
+			name: 'C#', value: 7.62,
+			icon: 'img/csharp.png',
+			desc: `
+				C# is a general-purpose, multi-paradigm programming language.
+				C# encompasses static typing, strong typing, lexically scoped,
+				imperative, declarative, functional, generic, object-oriented 
+				(class-based), and component-oriented programming disciplines.
+			`
+		}, {
+			name: 'C/C++', value: 7,
+			icon: 'img/c.png',
+			desc: `
+				C is a general-purpose computer programming language. It was
+				created in the 1970s by Dennis Ritchie, and remains very widely 
+				used and influential. 
+			`
+		}, {
+			name: 'PHP', value: 5.36,
+			icon: 'img/php.svg',
+			desc: `
+				PHP is a general-purpose scripting language geared toward web 
+				development. It was originally created by Danish-Canadian programmer
+				Rasmus Lerdorf in 1994.
+			`
+		}, {
+			name: 'R', value: 4.34,
+			icon: 'img/r.png',
+			desc: `
+				R is a programming language for statistical computing and graphics
+				supported by the R Core Team and the R Foundation for Statistical Computing.
+			`
+		}, {
+			name: 'TypeScript', value: 2.39,
+			icon: 'img/typescript.png',
+			desc: `
+				TypeScript is a programming language developed and maintained by
+				Microsoft. It is a strict syntactical superset of JavaScript and
+				adds optional static typing to the language.
+			`
+		},  {
+			name: 'Objective-C', value: 2.25,
+			icon: 'img/objectivec.svg',
+			desc: `
+				Objective-C is a general-purpose, object-oriented programming language
+				that adds Smalltalk-style messaging to the C programming language.
+			`
+		}, {
+			name: 'Swift', value: 2.05,
+			icon: 'img/swift.png',
+			desc: `
+				Swift is a general-purpose, multi-paradigm, compiled programming language
+				developed by Apple Inc. and the open-source community. Swift was developed 
+				as a replacement for Apple's earlier programming language Objective-C.
+			`
+		}];
+	</script>
+
+	<script>
+		let svg = d3.select('svg');
+		let width = document.body.clientWidth; // get width in pixels
+		let height = +svg.attr('height');
+		let centerX = width * 0.5;
+		let centerY = height * 0.5;
+		let strength = 0.05;
+		let focusedNode;
+
+		let format = d3.format(',d');
+
+		let scaleColor = d3.scaleOrdinal([`#383867`, `#584c77`, `#33431e`, `#63d12d`, `#01462f`, `#b63e36`, `#b74a70`, `#946943`, `#945543`, `#901143`]);
+
+		// use pack to calculate radius of the circle
+		let pack = d3.pack()
+			.size([width , height ])
+			.padding(1.5);
+
+		let forceCollide = d3.forceCollide(d => d.r + 1);
+
+		// use the force
+		let simulation = d3.forceSimulation()
+			// .force('link', d3.forceLink().id(d => d.id))
+			.force('charge', d3.forceManyBody())
+			.force('collide', forceCollide)
+			// .force('center', d3.forceCenter(centerX, centerY))
+			.force('x', d3.forceX(centerX ).strength(strength))
+			.force('y', d3.forceY(centerY ).strength(strength));
+
+		let root = d3.hierarchy({ children: data })
+			.sum(d => d.value);
+
+		// we use pack() to automatically calculate radius conveniently only
+		// and get only the leaves
+		let nodes = pack(root).leaves().map(node => {
+			console.log('node:', node.x, (node.x - centerX) * 2);
+			const data = node.data;
+			return {
+				x: centerX + (node.x - centerX) * 3, // magnify start position to have transition to center movement
+				y: centerY + (node.y - centerY) * 3,
+				r: 0, // for tweening
+				radius: node.r, //original radius
+				id: (data.name.replace(/\s/g, '-')),
+				name: data.name,
+				value: data.value,
+				icon: data.icon,
+				desc: data.desc,
+			}
+		});
+		simulation.nodes(nodes).on('tick', ticked);
+
+		svg.style('background-color', '#eee');
+		let node = svg.selectAll('.node')
+			.data(nodes)
+			.enter().append('g')
+			.attr('class', 'node')
+			.call(d3.drag()
+				.on('start', (d) => {
+					if (!d3.event.active) simulation.alphaTarget(0.2).restart();
+					d.fx = d.x;
+					d.fy = d.y;
+				})
+				.on('drag', (d) => {
+					d.fx = d3.event.x;
+					d.fy = d3.event.y;
+				})
+				.on('end', (d) => {
+					if (!d3.event.active) simulation.alphaTarget(0);
+					d.fx = null;
+					d.fy = null;
+				}));
+
+		node.append('circle')
+			.attr('id', d => d.id)
+			.attr('r', 0)
+			.style('fill', d => scaleColor(d.name))
+			.transition().duration(2000).ease(d3.easeElasticOut)
+				.tween('circleIn', (d) => {
+					let i = d3.interpolateNumber(0, d.radius);
+					return (t) => {
+						d.r = i(t);
+						simulation.force('collide', forceCollide);
+					}
+				})
+
+		node.append('clipPath')
+			.attr('id', d => `clip-${d.id}`)
+			.append('use')
+			.attr('xlink:href', d => `#${d.id}`);
+
+		// display image as circle icon
+		node.filter(d => String(d.icon).includes('img/'))
+			.append('image')
+			.classed('node-icon', true)
+			.attr('clip-path', d => `url(#clip-${d.id})`)
+			.attr('xlink:href', d => d.icon)
+			.attr('x', d => - d.radius * 0.7)
+			.attr('y', d => - d.radius * 0.7)
+			.attr('height', d => d.radius * 2 * 0.7)
+			.attr('width', d => d.radius * 2 * 0.7)
+
+		node.append('title')
+			.text(d => (d.name));
+
+		let legendOrdinal = d3.legendColor()
+			.scale(scaleColor)
+			.shape('circle');
+
+		let legend = svg.append('g')
+			.classed('legend-color', true)
+			.attr('text-anchor', 'start')
+			.attr('transform','translate(20,30)')
+			.style('font-size','12px')
+			.call(legendOrdinal);
+
+		let infoBox = node.append('foreignObject')
+			.classed('circle-overlay hidden', true)
+			.attr('x', -350 * 0.5 * 0.8)
+			.attr('y', -350 * 0.5 * 0.8)
+			.attr('height', 350 * 0.8)
+			.attr('width', 350 * 0.8)
+				.append('xhtml:div')
+				.classed('circle-overlay__inner', true);
+
+		infoBox.append('h2')
+			.classed('circle-overlay__title', true)
+			.text(d => d.name);
+
+		infoBox.append('p')
+			.classed('circle-overlay__body', true)
+			.html(d => d.desc);
+
+
+		node.on('click', (currentNode) => {
+			d3.event.stopPropagation();
+			console.log('currentNode', currentNode);
+			let currentTarget = d3.event.currentTarget; // the <g> el
+
+			if (currentNode === focusedNode) {
+				// no focusedNode or same focused node is clicked
+				return;
+			}
+			let lastNode = focusedNode;
+			focusedNode = currentNode;
+
+			simulation.alphaTarget(0.2).restart();
+			// hide all circle-overlay
+			d3.selectAll('.circle-overlay').classed('hidden', true);
+			d3.selectAll('.node-icon').classed('node-icon--faded', false);
+
+			// don't fix last node to center anymore
+			if (lastNode) {
+				lastNode.fx = null;
+				lastNode.fy = null;
+				node.filter((d, i) => i === lastNode.index)
+					.transition().duration(2000).ease(d3.easePolyOut)
+					.tween('circleOut', () => {
+						let irl = d3.interpolateNumber(lastNode.r, lastNode.radius);
+						return (t) => {
+							lastNode.r = irl(t);
+						}
+					})
+					.on('interrupt', () => {
+						lastNode.r = lastNode.radius;
+					});
+			}
+
+			// if (!d3.event.active) simulation.alphaTarget(0.5).restart();
+
+			d3.transition().duration(2000).ease(d3.easePolyOut)
+				.tween('moveIn', () => {
+					console.log('tweenMoveIn', currentNode);
+					let ix = d3.interpolateNumber(currentNode.x, centerX);
+					let iy = d3.interpolateNumber(currentNode.y, centerY);
+					let ir = d3.interpolateNumber(currentNode.r, centerY * 0.5);
+					return function (t) {
+						// console.log('i', ix(t), iy(t));
+						currentNode.fx = ix(t);
+						currentNode.fy = iy(t);
+						currentNode.r = ir(t);
+						simulation.force('collide', forceCollide);
+					};
+				})
+				.on('end', () => {
+					simulation.alphaTarget(0);
+					let $currentGroup = d3.select(currentTarget);
+					$currentGroup.select('.circle-overlay')
+						.classed('hidden', false);
+					$currentGroup.select('.node-icon')
+						.classed('node-icon--faded', true);
+
+				})
+				.on('interrupt', () => {
+					console.log('move interrupt', currentNode);
+					currentNode.fx = null;
+					currentNode.fy = null;
+					simulation.alphaTarget(0);
+				});
+
+		});
+
+		// blur
+		d3.select(document).on('click', () => {
+			let target = d3.event.target;
+			// check if click on document but not on the circle overlay
+			if (!target.closest('#circle-overlay') && focusedNode) {
+				focusedNode.fx = null;
+				focusedNode.fy = null;
+				simulation.alphaTarget(0.2).restart();
+				d3.transition().duration(2000).ease(d3.easePolyOut)
+					.tween('moveOut', function () {
+						console.log('tweenMoveOut', focusedNode);
+						let ir = d3.interpolateNumber(focusedNode.r, focusedNode.radius);
+						return function (t) {
+							focusedNode.r = ir(t);
+							simulation.force('collide', forceCollide);
+						};
+					})
+					.on('end', () => {
+						focusedNode = null;
+						simulation.alphaTarget(0);
+					})
+					.on('interrupt', () => {
+						simulation.alphaTarget(0);
+					});
+
+				// hide all circle-overlay
+				d3.selectAll('.circle-overlay').classed('hidden', true);
+				d3.selectAll('.node-icon').classed('node-icon--faded', false);
+			}
+		});
+
+		function ticked() {
+			node
+				.attr('transform', d => `translate(${d.x},${d.y})`)
+				.select('circle')
+					.attr('r', d => d.r);
+		}
+	</script>
+</body>
+</html>
