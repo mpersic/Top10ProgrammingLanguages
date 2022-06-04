@@ -21,6 +21,10 @@
 			display:block;
 		}
 
+		p {
+			text-align: center;
+		}
+
 		.circle-overlay {
 			font-size: 16px;
 			border-radius: 50%;
@@ -251,6 +255,23 @@
 			.style('font-size','12px')
 			.call(legendOrdinal);
 
+		let sizeScale = d3.scaleOrdinal()
+  			.domain(['less use', 'more use'])
+  			.range([5, 10] );
+
+		let legendSize = d3.legendSize()
+			.scale(sizeScale)
+			.shape('circle')
+			.shapePadding(10)
+			.labelAlign('end');
+
+		let legend2 = svg.append('g')
+			.classed('legend-size', true)
+			.attr('text-anchor', 'start')
+			.attr('transform', 'translate(150, 25)')
+			.style('font-size', '12px')
+			.call(legendSize);
+
 		let infoBox = node.append('foreignObject')
 			.classed('circle-overlay hidden', true)
 			.attr('x', -350 * 0.5 * 0.8)
@@ -375,5 +396,8 @@
 					.attr('r', d => d.r);
 		}
 	</script>
+
+	<p>Programming language is more popular if the circle is bigger</p>
+
 </body>
 </html>
